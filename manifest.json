@@ -6,7 +6,7 @@
   "author": "Your Name",
   "icon": "film",
   "category": "entertainment",
-  "repository": "https://github.com/YOUR-USERNAME/fiestaboard-plugin--plex-now-playing",
+  "repository": "https://github.com/Sneakamaila/fiestaboard-plugin--plex-now-playing",
   "settings_schema": {
     "type": "object",
     "properties": {
