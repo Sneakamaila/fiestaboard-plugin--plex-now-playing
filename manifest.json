@@ -1,8 +1,8 @@
 {
   "id": "plex_now_playing",
   "name": "Plex Now Playing",
-  "version": "1.1.0",
-  "description": "Displays current Plex playback with smart line wrapping on Vestaboard Note.",
+  "version": "1.2.0",
+  "description": "Displays current Plex playback with smart line wrapping and optional Plex-yellow accents on Vestaboard Note.",
   "author": "Sneakamaila",
   "icon": "film",
   "category": "entertainment",
@@ -13,16 +13,25 @@
       "plex_url": {
         "type": "string",
         "title": "Plex Server URL",
+        "description": "Base URL of your Plex Media Server (e.g. http://192.168.1.50:32400)",
         "default": "http://192.168.1.50:32400"
       },
       "plex_token": {
         "type": "string",
         "title": "Plex X-Token",
+        "description": "Your personal Plex authentication token",
         "ui:widget": "password"
       },
       "target_user": {
         "type": "string",
-        "title": "Target User (optional)"
+        "title": "Target User (optional)",
+        "description": "Only show streams from this Plex user. Leave empty to show all users."
+      },
+      "show_yellow_accents": {
+        "type": "boolean",
+        "title": "Show Plex yellow accents",
+        "description": "Display two yellow tiles on each side of the year (movies) or season/episode (series).",
+        "default": true
       },
       "refresh_seconds": {
         "type": "integer",
@@ -73,6 +82,15 @@
         "  BREAKING BAD ",
         "    S05 E14    ",
         "   OZYMANDIAS  "
+      ]
+    },
+    {
+      "label": "Movie (Note)",
+      "device_type": "note",
+      "rows": [
+        " INTERSTELLAR  ",
+        "               ",
+        "     2014      "
       ]
     }
   ]
