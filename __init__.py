@@ -1,4 +1,4 @@
-"""Plex Now Playing plugin for FiestaBoard with smart Note wrapping and centering."""
+"""Plex Now Playing plugin for FiestaBoard with smart Note wrapping, centering and optional Plex-yellow accents."""
 
 import logging
 import os
@@ -12,10 +12,11 @@ from src.plugins.base import PluginBase, PluginResult
 logger = logging.getLogger(__name__)
 
 MAX_WIDTH = 15
+ACCENT_CONTENT_WIDTH = 11  # 15 - 2 yellow left - 2 yellow right
 
 
 class PlexNowPlayingPlugin(PluginBase):
-    """Fetches current Plex playback session and exposes smart formatted lines for Vestaboard Note."""
+    """Fetches current Plex playback and formats smart 3-line layouts for Vestaboard Note."""
 
     @property
     def plugin_id(self) -> str:
@@ -37,6 +38,8 @@ class PlexNowPlayingPlugin(PluginBase):
         plex_url = (self.config.get("plex_url") or os.getenv("PLEX_URL", "")).rstrip("/")
         plex_token = self.config.get("plex_token") or os.getenv("PLEX_TOKEN")
         target_user = (self.config.get("target_user") or "").strip()
+        # Default to True if the setting is missing (e.g. after an upgrade)
+        show_yellow = self.config.get("show_yellow_accents", True)
 
         if not plex_url or not plex_token:
             return PluginResult(available=False, error="Plex URL or Token not configured")
@@ -64,7 +67,11 @@ class PlexNowPlayingPlugin(PluginBase):
         session = sessions[0]
         if target_user:
             match = next(
-                (s for s in sessions if s.get("User", {}).get("title", "").lower() == target_user.lower()),
+                (
+                    s
+                    for s in sessions
+                    if s.get("User", {}).get("title", "").lower() == target_user.lower()
+                ),
                 None,
             )
             if match:
@@ -72,36 +79,41 @@ class PlexNowPlayingPlugin(PluginBase):
             else:
                 return PluginResult(available=True, data=self._idle_data(user=target_user))
 
-        return PluginResult(available=True, data=self._build_data(session))
+        return PluginResult(
+            available=True,
+            data=self._build_data(session, show_yellow=show_yellow),
+        )
 
     # ---------- Formatting Helpers ----------
 
     @staticmethod
     def _center(text: str, width: int = MAX_WIDTH) -> str:
-        """Centers text cleanly within the given board width."""
-        text = text.strip()
+        """Centers text cleanly within the given width."""
+        text = (text or "").strip()
         if not text:
-            return ""
+            return " " * width if width > 0 else ""
         if len(text) >= width:
             return text[:width]
         left_pad = (width - len(text)) // 2
         right_pad = width - len(text) - left_pad
-        return " " * left_pad + text + " " * right_pad
+        return (" " * left_pad) + text + (" " * right_pad)
 
     def _format_two_line_title(self, text: str, width: int = MAX_WIDTH) -> Tuple[str, str]:
         """
         Formats a title over max 2 lines.
-        - Single line (<= 15 chars): Centered.
-        - Multi line (> 15 chars): Left-aligned, with '...' if it overflows line 2.
+        - Fits in 1 line  -> centered
+        - Needs 2+ lines -> left-aligned, with '...' if it overflows line 2
         """
-        text = text.strip()
+        text = (text or "").strip()
         if not text:
             return "", ""
 
         if len(text) <= width:
             return self._center(text, width), ""
 
-        lines = textwrap.wrap(text, width=width, break_long_words=True, break_on_hyphens=False)
+        lines = textwrap.wrap(
+            text, width=width, break_long_words=True, break_on_hyphens=False
+        )
         if not lines:
             return "", ""
 
@@ -112,7 +124,7 @@ class PlexNowPlayingPlugin(PluginBase):
         if len(lines) == 2:
             line2 = lines[1]
         else:
-            # Overflows 2 lines -> append '...' to line 2
+            # More than 2 lines -> truncate line 2 with '...'
             line2 = lines[1]
             if len(line2) > width - 3:
                 line2 = line2[: width - 3] + "..."
@@ -122,13 +134,25 @@ class PlexNowPlayingPlugin(PluginBase):
         return line1, line2
 
     def _format_ep_title(self, text: str, width: int = MAX_WIDTH) -> str:
-        """Formats episode title: Centered if fits, otherwise truncated with '...'."""
-        text = text.strip()
+        """Episode title: centered if it fits, otherwise truncated with '...'."""
+        text = (text or "").strip()
         if not text:
             return ""
         if len(text) <= width:
             return self._center(text, width)
         return text[: width - 3] + "..."
+
+    def _format_accent_line(self, text: str, show_yellow: bool) -> str:
+        """
+        Builds a line with optional two yellow tiles on each side.
+        When accents are off, the text is simply centered in the full 15 chars.
+        """
+        text = (text or "").strip()
+        if not show_yellow:
+            return self._center(text, MAX_WIDTH)
+
+        centered = self._center(text, ACCENT_CONTENT_WIDTH)
+        return "{yellow}{yellow}" + centered + "{yellow}{yellow}"
 
     # ---------- Data Builders ----------
 
@@ -144,18 +168,18 @@ class PlexNowPlayingPlugin(PluginBase):
             "show_name": "",
             "season_episode": "",
             "episode_title": "",
-            "user": user.upper()[:MAX_WIDTH],
+            "user": (user or "").upper()[:MAX_WIDTH],
             "status": "STANDBY",
         }
 
-    def _build_data(self, session: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_data(self, session: Dict[str, Any], show_yellow: bool = True) -> Dict[str, Any]:
         media_type = session.get("type", "")
         user = session.get("User", {}).get("title", "")
 
-        base = {
+        base: Dict[str, Any] = {
             "is_playing": "YES",
             "media_type": media_type.upper()[:7],
-            "user": user.upper()[:MAX_WIDTH],
+            "user": (user or "").upper()[:MAX_WIDTH],
             "status": "PLAYING",
             "line1": "",
             "line2": "",
@@ -172,11 +196,10 @@ class PlexNowPlayingPlugin(PluginBase):
             year = str(session.get("year")) if session.get("year") else ""
 
             line1, line2 = self._format_two_line_title(title, width=MAX_WIDTH)
-            line3 = self._center(year, width=MAX_WIDTH)
 
             base["line1"] = line1
             base["line2"] = line2
-            base["line3"] = line3
+            base["line3"] = self._format_accent_line(year, show_yellow)
             base["title"] = title[:MAX_WIDTH]
             base["year"] = year
 
@@ -188,16 +211,20 @@ class PlexNowPlayingPlugin(PluginBase):
             se_str = f"S{season} E{episode}"
 
             if len(show) <= MAX_WIDTH:
-                # Show fits in Line 1
+                # Short show title:
+                # Line 1 = show (centered)
+                # Line 2 = Sxx Exx (with optional yellow accents)
+                # Line 3 = episode title
                 base["line1"] = self._center(show, width=MAX_WIDTH)
-                base["line2"] = self._center(se_str, width=MAX_WIDTH)
+                base["line2"] = self._format_accent_line(se_str, show_yellow)
                 base["line3"] = self._format_ep_title(ep_title, width=MAX_WIDTH)
             else:
-                # Show wraps to Line 1 & Line 2
+                # Long show title wraps into line 1+2
+                # Line 3 = Sxx Exx (with optional yellow accents)
                 line1, line2 = self._format_two_line_title(show, width=MAX_WIDTH)
                 base["line1"] = line1
                 base["line2"] = line2
-                base["line3"] = self._center(se_str, width=MAX_WIDTH)
+                base["line3"] = self._format_accent_line(se_str, show_yellow)
 
             base["show_name"] = show[:MAX_WIDTH]
             base["season_episode"] = se_str
