@@ -1,9 +1,9 @@
-﻿{
+{
   "id": "plex_now_playing",
   "name": "Plex Now Playing",
   "version": "1.0.0",
   "description": "Displays the currently playing movie or TV episode from your Plex Media Server on your Vestaboard.",
-  "author": "Your Name",
+  "author": "Sneakamaila",
   "icon": "film",
   "category": "entertainment",
   "repository": "https://github.com/Sneakamaila/fiestaboard-plugin--plex-now-playing",
